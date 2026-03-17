@@ -244,13 +244,16 @@ public class UsbHidManager {
         for (int i = 0; i < intf.getEndpointCount(); i++) {
             UsbEndpoint ep = intf.getEndpoint(i);
             int dir = ep.getDirection();
+            int type = ep.getType();
             
             Log.d(TAG, "端点 " + i + ": 地址=0x" + Integer.toHexString(ep.getAddress()) + 
-                      ", 类型=" + ep.getType() + 
-                      ", 方向=" + (dir == UsbEndpoint.USB_DIR_IN ? "IN" : "OUT"));
+                      ", 类型=" + type + 
+                      ", 方向=" + dir);
             
-            if (ep.getType() == UsbEndpoint.USB_ENDPOINT_XFER_INT) {
-                if (dir == UsbEndpoint.USB_DIR_IN) {
+            // 中断传输端点: type=3 (0x03)
+            // 输入方向: dir=128 (0x80)
+            if (type == 3) {
+                if (dir == 128) {
                     endpointIn = ep;
                 } else {
                     endpointOut = ep;
