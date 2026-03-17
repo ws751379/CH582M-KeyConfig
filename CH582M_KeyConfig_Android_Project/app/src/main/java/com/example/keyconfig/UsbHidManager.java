@@ -21,7 +21,7 @@ public class UsbHidManager {
     private static final int VID = 6790;  // 0x1A86 - WCH
     private static final int PID = 97;    // 0x0061
 
-    // USB 常量（数值直接定义，避免 UsbEndpoint 常量访问问题）
+    // USB 常量
     private static final int USB_DIR_IN = 128;           // 0x80
     private static final int USB_ENDPOINT_XFER_INT = 3;  // 中断传输
 
@@ -29,8 +29,11 @@ public class UsbHidManager {
     private UsbManager usbManager;
     private UsbDevice device;
     private UsbDeviceConnection connection;
-    private UsbEndpoint endpointIn;
-    private UsbEndpoint endpointOut;
+
+    // 配置通道端点（接口1，EP2）
+    private UsbInterface configInterface;
+    private UsbEndpoint ep2In;   // 0x82 - 读配置应答
+    private UsbEndpoint ep2Out;  // 0x02 - 写配置/查询
 
     private Thread readThread;
     private volatile boolean isRunning = false;
@@ -162,30 +165,30 @@ public class UsbHidManager {
 
         if (connection == null) {
             Log.e(TAG, "UsbDeviceConnection.openDevice() 返回 null");
-            Log.e(TAG, "可能原因：1) 接口已被占用 2) 没有权限 3) 设备已断开");
             if (listener != null) {
                 listener.onError("无法打开 USB 连接");
             }
             return false;
         }
 
-        Log.d(TAG, "USB 连接成功，查找 HID 接口...");
+        Log.d(TAG, "USB 连接成功");
 
-        UsbInterface hidInterface = findHidInterface(device);
-        if (hidInterface == null) {
-            Log.e(TAG, "未找到 HID 接口");
+        // 查找配置接口（接口1，HID Class=0x03）
+        configInterface = findConfigInterface(device);
+        if (configInterface == null) {
+            Log.e(TAG, "未找到配置接口（接口1）");
             connection.close();
             connection = null;
             if (listener != null) {
-                listener.onError("未找到 HID 接口");
+                listener.onError("未找到配置接口");
             }
             return false;
         }
 
-        Log.d(TAG, "找到 HID 接口，接口号: " + hidInterface.getId());
+        Log.d(TAG, "找到配置接口，接口号: " + configInterface.getId());
 
-        if (!connection.claimInterface(hidInterface, true)) {
-            Log.e(TAG, "claimInterface 失败，接口可能被占用");
+        if (!connection.claimInterface(configInterface, true)) {
+            Log.e(TAG, "claimInterface 失败");
             connection.close();
             connection = null;
             if (listener != null) {
@@ -194,26 +197,28 @@ public class UsbHidManager {
             return false;
         }
 
-        Log.d(TAG, "HID 接口占用成功");
+        Log.d(TAG, "配置接口占用成功");
 
-        // 查找端点
-        findEndpoints(hidInterface);
+        // 查找 EP2 端点
+        findEp2Endpoints(configInterface);
 
-        if (endpointIn == null) {
-            Log.e(TAG, "未找到输入端点");
+        if (ep2Out == null) {
+            Log.e(TAG, "未找到 EP2 OUT 端点");
             connection.close();
             connection = null;
             if (listener != null) {
-                listener.onError("未找到输入端点");
+                listener.onError("未找到输出端点");
             }
             return false;
         }
 
-        Log.d(TAG, "输入端点地址: 0x" + Integer.toHexString(endpointIn.getAddress()));
-        Log.d(TAG, "输出端点地址: " + (endpointOut != null ? "0x" + Integer.toHexString(endpointOut.getAddress()) : "无"));
+        Log.d(TAG, "EP2 IN: " + (ep2In != null ? "0x" + Integer.toHexString(ep2In.getAddress()) : "无"));
+        Log.d(TAG, "EP2 OUT: 0x" + Integer.toHexString(ep2Out.getAddress()));
 
         // 启动读取线程
-        startReadThread();
+        if (ep2In != null) {
+            startReadThread();
+        }
 
         Log.d(TAG, "设备连接成功！");
         if (listener != null) {
@@ -223,45 +228,58 @@ public class UsbHidManager {
         return true;
     }
 
-    private UsbInterface findHidInterface(UsbDevice device) {
-        UsbInterface hidInterface = null;
+    /**
+     * 查找配置接口（接口1，HID Class=0x03）
+     * CH582M 有两个接口：
+     *   接口0：标准键盘
+     *   接口1：自定义配置（我们要用的）
+     */
+    private UsbInterface findConfigInterface(UsbDevice device) {
+        Log.d(TAG, "查找配置接口，共 " + device.getInterfaceCount() + " 个接口");
+
         for (int i = 0; i < device.getInterfaceCount(); i++) {
             UsbInterface intf = device.getInterface(i);
             Log.d(TAG, "接口 " + i + ": 类=" + intf.getInterfaceClass() +
                       ", 子类=" + intf.getInterfaceSubclass() +
-                      ", 协议=" + intf.getInterfaceProtocol());
+                      ", 协议=" + intf.getInterfaceProtocol() +
+                      ", 端点数=" + intf.getEndpointCount());
 
             // HID 接口: Class=0x03
-            if (intf.getInterfaceClass() == 0x03) {
-                Log.d(TAG, "找到 HID 接口");
-                hidInterface = intf;
-                break;
+            // 配置接口是第二个 HID 接口（接口1），有2个端点
+            if (intf.getInterfaceClass() == 0x03 && intf.getEndpointCount() == 2) {
+                Log.d(TAG, "找到配置接口（接口" + i + "）");
+                return intf;
             }
         }
-        return hidInterface;
+        return null;
     }
 
-    private void findEndpoints(UsbInterface intf) {
-        endpointIn = null;
-        endpointOut = null;
+    /**
+     * 查找 EP2 端点
+     * EP2 IN (0x82): 设备→主机，读配置应答
+     * EP2 OUT (0x02): 主机→设备，写配置/查询
+     */
+    private void findEp2Endpoints(UsbInterface intf) {
+        ep2In = null;
+        ep2Out = null;
 
         for (int i = 0; i < intf.getEndpointCount(); i++) {
             UsbEndpoint ep = intf.getEndpoint(i);
+            int addr = ep.getAddress();
             int dir = ep.getDirection();
             int type = ep.getType();
 
-            Log.d(TAG, "端点 " + i + ": 地址=0x" + Integer.toHexString(ep.getAddress()) +
-                      ", 类型=" + type +
-                      ", 方向=" + dir);
+            Log.d(TAG, "端点 " + i + ": 地址=0x" + Integer.toHexString(addr) +
+                      ", 类型=" + type + ", 方向=" + dir);
 
-            // 中断传输端点: type=3 (0x03)
-            // 输入方向: dir=128 (0x80)
-            if (type == USB_ENDPOINT_XFER_INT) {
-                if (dir == USB_DIR_IN) {
-                    endpointIn = ep;
-                } else {
-                    endpointOut = ep;
-                }
+            // EP2 IN: 地址 0x82 (130), 方向 IN (128)
+            // EP2 OUT: 地址 0x02 (2), 方向 OUT (0)
+            if (addr == 0x82) {
+                ep2In = ep;
+                Log.d(TAG, "  -> EP2 IN (读配置)");
+            } else if (addr == 0x02) {
+                ep2Out = ep;
+                Log.d(TAG, "  -> EP2 OUT (写配置)");
             }
         }
     }
@@ -272,8 +290,8 @@ public class UsbHidManager {
             @Override
             public void run() {
                 byte[] buffer = new byte[64];
-                while (isRunning && connection != null) {
-                    int bytesReceived = connection.bulkTransfer(endpointIn, buffer, buffer.length, 1000);
+                while (isRunning && connection != null && ep2In != null) {
+                    int bytesReceived = connection.bulkTransfer(ep2In, buffer, buffer.length, 1000);
                     if (bytesReceived > 0) {
                         Log.d(TAG, "收到 " + bytesReceived + " 字节数据");
                         byte[] data = new byte[bytesReceived];
@@ -282,8 +300,10 @@ public class UsbHidManager {
                             listener.onDataReceived(data);
                         }
                     } else if (bytesReceived < 0) {
-                        Log.e(TAG, "读取失败: " + bytesReceived);
-                        break;
+                        // 超时或错误，继续循环
+                        if (bytesReceived != -1) {
+                            Log.e(TAG, "读取错误: " + bytesReceived);
+                        }
                     }
                 }
             }
@@ -305,27 +325,44 @@ public class UsbHidManager {
         }
 
         if (connection != null) {
+            if (configInterface != null) {
+                connection.releaseInterface(configInterface);
+                configInterface = null;
+            }
             connection.close();
             connection = null;
         }
+
+        ep2In = null;
+        ep2Out = null;
 
         if (listener != null) {
             listener.onDisconnected();
         }
     }
 
+    /**
+     * 发送命令到 EP2 OUT
+     * 必须发送 64 字节（CH582M 协议要求）
+     */
     public void sendCommand(byte[] command) {
-        if (connection == null || endpointOut == null) {
-            Log.e(TAG, "未连接或没有输出端点");
+        if (connection == null || ep2Out == null) {
+            Log.e(TAG, "未连接或没有 EP2 OUT 端点");
             if (listener != null) {
                 listener.onError("设备未连接");
             }
             return;
         }
 
-        Log.d(TAG, "发送命令: " + bytesToHex(command));
-        int result = connection.bulkTransfer(endpointOut, command, command.length, 1000);
-        if (result != command.length) {
+        // CH582M 要求 64 字节包
+        byte[] packet = new byte[64];
+        System.arraycopy(command, 0, packet, 0, Math.min(command.length, 64));
+
+        Log.d(TAG, "发送命令: " + bytesToHex(packet));
+        int result = connection.bulkTransfer(ep2Out, packet, packet.length, 1000);
+        Log.d(TAG, "发送结果: " + result + " 字节");
+
+        if (result != packet.length) {
             Log.e(TAG, "发送失败，返回值: " + result);
             if (listener != null) {
                 listener.onError("发送命令失败");
@@ -335,21 +372,30 @@ public class UsbHidManager {
         }
     }
 
-    // 读取配置
+    /**
+     * 读取配置
+     * 协议: [0]='R'(0x52) [1..63]=0
+     */
     public void readConfig() {
-        byte[] command = {0x01, 0x00};  // 假设的读取命令
+        byte[] command = new byte[64];
+        command[0] = 0x52;  // 'R'
+        // 其余自动为 0
         sendCommand(command);
     }
 
-    // 写入键值配置
+    /**
+     * 写入键值配置
+     * 协议: [0]='W'(0x57) [1]=键索引 [2]=类型 [3]=keycode_lo [4]=keycode_hi [5]=modifier
+     */
     public void writeKeyConfig(int keyIndex, KeyValue keyValue) {
-        byte[] command = new byte[8];
-        command[0] = 0x02;  // 写入命令
+        byte[] command = new byte[64];
+        command[0] = 0x57;           // 'W' - 写命令
         command[1] = (byte) keyIndex;
         command[2] = (byte) keyValue.type;
         command[3] = (byte) keyValue.code;
         command[4] = (byte) keyValue.codeH;
         command[5] = (byte) keyValue.mod;
+        // 其余自动为 0
         sendCommand(command);
     }
 
@@ -368,8 +414,11 @@ public class UsbHidManager {
 
     private String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02X ", b));
+        for (int i = 0; i < bytes.length && i < 16; i++) {  // 只显示前16字节
+            sb.append(String.format("%02X ", bytes[i]));
+        }
+        if (bytes.length > 16) {
+            sb.append("...");
         }
         return sb.toString();
     }
