@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">按键配置</string>
+    <string name="connect_usb">连接 USB 设备</string>
+    <string name="disconnect">断开连接</string>
+    <string name="read_config">读取配置</string>
+    <string name="save_config">保存配置</string>
+    <string name="reset_default">恢复默认</string>
+    <string name="device_connected">设备已连接</string>
+    <string name="device_disconnected">设备未连接</string>
+    <string name="key_format">按键 %d</string>
+    <string name="modifier_ctrl">Ctrl</string>
+    <string name="modifier_shift">Shift</string>
+    <string name="modifier_alt">Alt</string>
+    <string name="modifier_win">Win</string>
+</resources>

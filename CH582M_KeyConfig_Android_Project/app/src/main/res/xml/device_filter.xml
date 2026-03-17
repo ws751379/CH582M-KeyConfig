@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- CH582M HID Device -->
+    <usb-device vendor-id="6790" product-id="97" />
+</resources>

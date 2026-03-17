@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/card_bg"
+    android:padding="16dp"
+    android:layout_marginBottom="12dp">
+
+    <!-- 按键标题 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:id="@+id/tvKeyNumber"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/key_number_bg"
+            android:gravity="center"
+            android:text="K1"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvKeyTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="按键 1"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- 键值选择 -->
+    <Spinner
+        android:id="@+id/spinnerKey"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@drawable/spinner_bg"
+        android:layout_marginBottom="12dp" />
+
+    <!-- 修饰键 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <ToggleButton
+            android:id="@+id/btnCtrl"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:textOn="Ctrl"
+            android:textOff="Ctrl"
+            android:background="@drawable/toggle_bg" />
+
+        <ToggleButton
+            android:id="@+id/btnShift"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:layout_marginHorizontal="6dp"
+            android:textOn="Shift"
+            android:textOff="Shift"
+            android:background="@drawable/toggle_bg" />
+
+        <ToggleButton
+            android:id="@+id/btnAlt"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:layout_marginHorizontal="6dp"
+            android:textOn="Alt"
+            android:textOff="Alt"
+            android:background="@drawable/toggle_bg" />
+
+        <ToggleButton
+            android:id="@+id/btnWin"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:textOn="Win"
+            android:textOff="Win"
+            android:background="@drawable/toggle_bg" />
+    </LinearLayout>
+
+</LinearLayout>
