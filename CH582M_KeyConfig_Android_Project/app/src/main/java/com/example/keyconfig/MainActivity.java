@@ -2,9 +2,9 @@ package com.example.keyconfig;
 
 import android.os.Bundle;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -16,40 +16,48 @@ public class MainActivity extends AppCompatActivity {
     private UsbHidManager usbManager;
     private Spinner[] spinners = new Spinner[6];
     private KeyValue[] keyConfigs = new KeyValue[6];
-    private TextView statusText;
-    private Button connectButton;
-    private Button readButton;
-    private Button writeButton;
+    private TextView tvStatus;
+    private TextView tvLog;
+    private Button btnConnect;
+    private Button btnRead;
+    private Button btnSave;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         
-        statusText = findViewById(R.id.status_text);
-        connectButton = findViewById(R.id.btn_connect);
-        readButton = findViewById(R.id.btn_read);
-        writeButton = findViewById(R.id.btn_write);
+        // 初始化 UI 控件
+        tvStatus = findViewById(R.id.tvStatus);
+        tvLog = findViewById(R.id.tvLog);
+        btnConnect = findViewById(R.id.btnConnect);
+        btnRead = findViewById(R.id.btnRead);
+        btnSave = findViewById(R.id.btnSave);
         
-        spinners[0] = findViewById(R.id.spinner_key1);
-        spinners[1] = findViewById(R.id.spinner_key2);
-        spinners[2] = findViewById(R.id.spinner_key3);
-        spinners[3] = findViewById(R.id.spinner_key4);
-        spinners[4] = findViewById(R.id.spinner_key5);
-        spinners[5] = findViewById(R.id.spinner_key6);
+        LinearLayout keyContainer = findViewById(R.id.keyContainer);
+        
+        // 创建 6 个键值配置 Spinner
+        for (int i = 0; i < 6; i++) {
+            View itemView = getLayoutInflater().inflate(R.layout.item_key_config, keyContainer, false);
+            
+            TextView labelView = itemView.findViewById(R.id.tvKeyLabel);
+            Spinner spinner = itemView.findViewById(R.id.spinnerKey);
+            
+            labelView.setText("按键 " + (i + 1));
+            
+            // 设置 Spinner 选项
+            ArrayAdapter<KeyValue> adapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, KeyValue.KEYBOARD_KEYS);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            spinner.setAdapter(adapter);
+            
+            spinners[i] = spinner;
+            keyContainer.addView(itemView);
+        }
         
         // 初始化键值配置
         for (int i = 0; i < 6; i++) {
             keyConfigs[i] = KeyValue.KEYBOARD_KEYS[0]; // 默认"无动作"
-        }
-        
-        // 设置 Spinner 选项
-        ArrayAdapter<KeyValue> adapter = new ArrayAdapter<>(
-            this, android.R.layout.simple_spinner_item, KeyValue.KEYBOARD_KEYS);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        
-        for (Spinner spinner : spinners) {
-            spinner.setAdapter(adapter);
         }
         
         // 初始化 USB 管理器
@@ -59,9 +67,9 @@ public class MainActivity extends AppCompatActivity {
             public void onConnected() {
                 runOnUiThread(() -> {
                     updateStatus("设备已连接");
-                    connectButton.setText("断开");
-                    readButton.setEnabled(true);
-                    writeButton.setEnabled(true);
+                    btnConnect.setText("断开");
+                    btnRead.setEnabled(true);
+                    btnSave.setEnabled(true);
                 });
             }
             
@@ -69,16 +77,16 @@ public class MainActivity extends AppCompatActivity {
             public void onDisconnected() {
                 runOnUiThread(() -> {
                     updateStatus("设备已断开");
-                    connectButton.setText("连接");
-                    readButton.setEnabled(false);
-                    writeButton.setEnabled(false);
+                    btnConnect.setText("连接");
+                    btnRead.setEnabled(false);
+                    btnSave.setEnabled(false);
                 });
             }
             
             @Override
             public void onDataReceived(byte[] data) {
                 runOnUiThread(() -> {
-                    updateStatus("收到数据: " + bytesToHex(data));
+                    appendLog("收到数据: " + bytesToHex(data));
                     // 解析数据并更新界面
                     if (data.length >= 6) {
                         for (int i = 0; i < 6 && i < data.length; i++) {
@@ -92,29 +100,30 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onError(String message) {
                 runOnUiThread(() -> {
-                    updateStatus("错误: " + message);
+                    appendLog("错误: " + message);
                     Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
                 });
             }
         });
         
         // 连接/断开按钮
-        connectButton.setOnClickListener(v -> {
+        btnConnect.setOnClickListener(v -> {
             if (usbManager.getConnection() != null) {
                 usbManager.closeConnection();
             } else {
+                appendLog("正在连接...");
                 usbManager.requestConnection();
             }
         });
         
         // 读取配置按钮
-        readButton.setOnClickListener(v -> {
+        btnRead.setOnClickListener(v -> {
+            appendLog("读取配置...");
             usbManager.readConfig();
-            updateStatus("读取配置...");
         });
         
-        // 写入配置按钮
-        writeButton.setOnClickListener(v -> {
+        // 保存配置按钮
+        btnSave.setOnClickListener(v -> {
             // 从 Spinner 获取选中的键值
             for (int i = 0; i < 6; i++) {
                 KeyValue selected = (KeyValue) spinners[i].getSelectedItem();
@@ -123,12 +132,14 @@ public class MainActivity extends AppCompatActivity {
                     usbManager.writeKeyConfig(i, keyConfigs[i]);
                 }
             }
-            updateStatus("写入配置...");
+            appendLog("写入配置...");
         });
         
         // 初始状态
-        readButton.setEnabled(false);
-        writeButton.setEnabled(false);
+        btnRead.setEnabled(false);
+        btnSave.setEnabled(false);
+        
+        updateStatus("设备未连接");
     }
     
     @Override
@@ -145,8 +156,18 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void updateStatus(String text) {
-        if (statusText != null) {
-            statusText.setText(text);
+        if (tvStatus != null) {
+            tvStatus.setText(text);
+        }
+    }
+    
+    private void appendLog(String text) {
+        if (tvLog != null) {
+            String currentLog = tvLog.getText().toString();
+            if (currentLog.length() > 2000) {
+                currentLog = currentLog.substring(1000); // 限制日志长度
+            }
+            tvLog.setText(currentLog + "\n" + text);
         }
     }
     
