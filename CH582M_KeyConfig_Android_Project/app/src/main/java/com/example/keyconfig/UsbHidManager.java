@@ -12,6 +12,8 @@ import android.hardware.usb.UsbInterface;
 import android.hardware.usb.UsbManager;
 import android.util.Log;
 
+import java.util.HashMap;
+
 public class UsbHidManager {
     private static final String TAG = "UsbHidManager";
     private static final String ACTION_USB_PERMISSION = "com.example.keyconfig.USB_PERMISSION";
@@ -46,6 +48,10 @@ public class UsbHidManager {
     
     public void setUsbEventListener(UsbEventListener listener) {
         this.listener = listener;
+    }
+    
+    public UsbDeviceConnection getConnection() {
+        return connection;
     }
     
     private void registerPermissionReceiver() {
@@ -237,7 +243,7 @@ public class UsbHidManager {
         
         for (int i = 0; i < intf.getEndpointCount(); i++) {
             UsbEndpoint ep = intf.getEndpoint(i);
-            int dir = ep.getDirection() & UsbEndpoint.USB_DIR_IN;
+            int dir = ep.getDirection();
             
             Log.d(TAG, "端点 " + i + ": 地址=0x" + Integer.toHexString(ep.getAddress()) + 
                       ", 类型=" + ep.getType() + 
