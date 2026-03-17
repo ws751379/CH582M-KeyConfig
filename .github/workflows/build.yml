@@ -26,6 +26,11 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Enable AndroidX
+        run: |
+          echo "android.useAndroidX=true" >> CH582M_KeyConfig_Android_Project/gradle.properties
+          echo "android.enableJetifier=true" >> CH582M_KeyConfig_Android_Project/gradle.properties
+
       - name: Build with Gradle
         working-directory: CH582M_KeyConfig_Android_Project
         run: gradle assembleDebug
