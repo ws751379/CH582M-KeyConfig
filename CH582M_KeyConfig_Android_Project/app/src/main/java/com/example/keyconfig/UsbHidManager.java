@@ -124,7 +124,7 @@ public class UsbHidManager {
 
         Log.d(TAG, "未找到目标设备 VID=" + VID + " PID=" + PID);
         if (listener != null) {
-            listener.onError("未找到 CH582M 设备");
+            listener.onError("未找到 MA按键 设备");
         }
     }
 
@@ -236,7 +236,7 @@ public class UsbHidManager {
     private UsbInterface findHidInterface(UsbDevice device) {
         UsbInterface configInterface = null;
         UsbInterface firstHidInterface = null;
-        
+
         for (int i = 0; i < device.getInterfaceCount(); i++) {
             UsbInterface intf = device.getInterface(i);
             Log.d(TAG, "接口 " + i + ": 类=" + intf.getInterfaceClass() +
@@ -256,7 +256,7 @@ public class UsbHidManager {
                 }
             }
         }
-        
+
         // 优先返回有2个端点的配置接口
         if (configInterface != null) {
             return configInterface;
@@ -273,7 +273,7 @@ public class UsbHidManager {
             UsbEndpoint ep = intf.getEndpoint(i);
             int address = ep.getAddress();
             int type = ep.getType();
-            
+
             // 通过地址最高位判断方向：0x80 = IN, 0x00 = OUT
             boolean isIn = (address & 0x80) != 0;
 
@@ -292,7 +292,7 @@ public class UsbHidManager {
                 }
             }
         }
-        
+
         if (endpointOut == null) {
             Log.e(TAG, "警告：未找到输出端点！");
         }
@@ -374,7 +374,6 @@ public class UsbHidManager {
     public void readConfig() {
         byte[] command = new byte[64];
         command[0] = 0x52;  // 'R'
-        // 其余字节已经是0
         sendCommand(command);
     }
 
@@ -387,7 +386,6 @@ public class UsbHidManager {
         command[3] = (byte) keyValue.code;
         command[4] = (byte) keyValue.codeH;
         command[5] = (byte) keyValue.mod;
-        // 其余字节已经是0
         sendCommand(command);
     }
 
